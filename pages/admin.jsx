@@ -21,6 +21,7 @@ import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import clientPromise from '../lib/mongodb';
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 const parser = require('any-date-parser');
 
 
@@ -195,6 +196,10 @@ export default function Admin({ groupedTasks })
 
     return (
         <>
+            <Head>
+                <title>Admin</title>
+                <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+            </Head>
             <Container maxW='container.xl'>
                 <Flex mt={4} justifyContent='space-between'>
                     <Img src="/calendo_logo.png" />
