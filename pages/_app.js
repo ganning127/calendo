@@ -1,6 +1,7 @@
 // pages/_app.js
 import { ChakraProvider } from '@chakra-ui/react';
 import { Global, css } from "@emotion/react";
+import { ClerkProvider } from "@clerk/nextjs";
 
 
 const GlobalStyle = ({ children }) =>
@@ -29,11 +30,13 @@ const GlobalStyle = ({ children }) =>
 function MyApp({ Component, pageProps })
 {
     return (
-        <ChakraProvider>
-            <GlobalStyle>
-                <Component {...pageProps} />
-            </GlobalStyle>
-        </ChakraProvider>
+        <ClerkProvider {...pageProps}>
+            <ChakraProvider>
+                <GlobalStyle>
+                    <Component {...pageProps} />
+                </GlobalStyle>
+            </ChakraProvider>
+        </ClerkProvider>
     );
 }
 

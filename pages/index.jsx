@@ -4,7 +4,7 @@ import
   FormLabel,
   FormErrorMessage,
   Input, Button,
-  FormHelperText,
+  FormHelperText, Flex,
   Modal,
   ModalOverlay,
   ModalContent,
@@ -13,17 +13,54 @@ import
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  HStack
+  HStack,
+  useToast
 
 } from '@chakra-ui/react';
-import Head from 'next/head';
+import { Task } from "../components/Task";
+import { useEffect } from 'react';
 import clientPromise from '../lib/mongodb';
+import { UserButton, useAuth, useUser } from "@clerk/nextjs";
+import { getAuth } from "@clerk/nextjs/server";
+import { useState } from 'react';
+import { useRouter } from 'next/router';
 
-export const getServerSideProps = async () =>
+
+export const getServerSideProps = async ({ req }) =>
 {
+
+  const { userId } = await getAuth(req);
+
+
   try
   {
-    await clientPromise;
+    const client = await clientPromise;
+    const db = await client.db("calendo-cluster");
+    const collection = await db.collection("tasks");
+
+    const userTasksAll = await collection
+      .find({
+        owner: userId,
+      })
+      .toArray();
+
+
+    let propsToReturn = {};
+
+    for (let i = 0; i < userTasksAll.length; i++)
+    {
+      let cat = userTasksAll[i]['category'];
+      if (cat in propsToReturn)
+      {
+        propsToReturn[cat].push(userTasksAll[i]);
+      } else
+      {
+        propsToReturn[cat] = [userTasksAll[i]];
+      }
+    }
+
+    propsToReturn = JSON.parse(JSON.stringify(propsToReturn));
+
     // `await clientPromise` will use the default database passed in the MONGODB_URI
     // However you can use another database (e.g. myDatabase) by replacing the `await clientPromise` with the following code:
     //
@@ -34,13 +71,13 @@ export const getServerSideProps = async () =>
     // db.find({}) or any of the MongoDB Node Driver commands
 
     return {
-      props: { isConnected: true },
+      props: { groupedTasks: propsToReturn, success: true },
     };
   } catch (e)
   {
     console.error(e);
     return {
-      props: { isConnected: false },
+      props: { success: false },
     };
   }
 };
@@ -68,39 +105,84 @@ const avatars = [
   },
 ];
 
-const sampleTask = {
-  name: "Clean up bed",
-};
-
-const sampleTasks = [
-  sampleTask, sampleTask, sampleTask, sampleTask, sampleTask
-];
-
 
 export default function Home({
-  isConnected
+  groupedTasks
 })
 {
+  const { isLoaded, isSignedIn, user } = useUser();
+
+  if (!isLoaded || !isSignedIn)
+  {
+    return null;
+  }
+  const { userId, sessionId, getToken } = useAuth();
+
+
+  const [newTask, setNewTask] = useState("");
+  const [newCat, setNewCat] = useState("");
+  const toast = useToast();
+  const router = useRouter();
 
 
   const { isOpen: task_isOpen, onOpen: task_onOpen, onClose: task_onClose } = useDisclosure();
 
-  const { isOpen: cat_isOpen, onOpen: cat_onOpen, onClose: cat_onClose } = useDisclosure();
+  const handleAddTask = async () =>
+  {
+    if (newTask == "")
+    {
+      alert("can't add null task");
+      return;
+    }
 
+    const resp = await fetch('/api/addTask', {
+      method: "POST",
+      body: JSON.stringify({
+        name: newTask,
+        due: new Date(), // should be new Date()
+        created_by: "SELF",
+        owner: userId, // this would be a UUID that matches w/clerk
+        completed: false, // true/false
+        category: newCat != "" ? newCat : "misc",
+        priority: 1 // 1 is the highest
+      })
+    });
+
+    const data = await resp.json();
+
+    if (data.success)
+    {
+      toast({
+        title: `Task: ${newTask} created`,
+        description: "We've created your task for you.",
+        status: 'success',
+        duration: 9000,
+        isClosable: true,
+      });
+      task_onClose();
+      router.push("/");
+
+      setNewCat("");
+      setNewTask("");
+    }
+
+
+  };
 
   return (
     <>
       <Container maxW='container.xl'>
-        <Box mt={4}>
+        <Flex mt={4} justifyContent='space-between'>
           <Img src="/calendo_logo.png" />
-        </Box>
+          <UserButton afterSignOutUrl="/" />
+
+        </Flex>
 
         <SimpleGrid h='90vh' columns={{ base: 1, md: 2 }} spacing={8} >
 
-
           <Box border=''>
             <Stack direction={'row'} spacing={4} align={'center'} mt={16}>
-              <AvatarGroup>
+              {/* <AvatarGroup>
                 {avatars.map((avatar) => (
                   <Avatar
                     key={avatar.name}
@@ -124,150 +206,73 @@ export default function Home({
                     }}
                   />
                 ))}
-              </AvatarGroup>
+              </AvatarGroup> */}
+              <Heading fontWeight="black" textAlign="center" size="2xl" my={4}>
+                Welcome back,{" "}
+                <Text as="span" color="blue.600">
+                  {user.firstName}
+                </Text>
+                .
+              </Heading>
             </Stack>
 
             <Box h='400px' shadow='xl' rounded='md' border='' mt={16} bg='white'>
-
+              <iframe src="https://calendar.google.com/calendar/embed?src=6c1e5e92ead40842acd5723e743c093b3b197663095df5a2f0f0eaac01f2b5e2%40group.calendar.google.com&ctz=America%2FNew_York" width="100%" height="100%" frameborder="0" scrolling="no"></iframe>
             </Box>
 
           </Box>
 
           <Box border='' alignSelf='center'>
 
-
-
-
-            <Accordion defaultIndex={[0, 1]} allowMultiple mt={8}>
-              <AccordionItem>
-                <h2>
-                  <AccordionButton>
-                    <Box as="span" flex='1' textAlign='left'>
-                      Section 1 title
-                    </Box>
-                    <AccordionIcon />
-                  </AccordionButton>
-                </h2>
-                <AccordionPanel pb={4}>
-                  <Stack spacing={1}>
-                    {
-                      sampleTasks.map((task, index) =>
-                      {
-                        return (
-                          <>
-                            <Checkbox>{task.name}</Checkbox>
-                          </>
-                        );
-                      })
-                    }
-                  </Stack>
-                </AccordionPanel>
-              </AccordionItem>
-
-              <AccordionItem>
-                <h2>
-                  <AccordionButton>
-                    <Box as="span" flex='1' textAlign='left'>
-                      Section 1 title
-                    </Box>
-                    <AccordionIcon />
-                  </AccordionButton>
-                </h2>
-                <AccordionPanel pb={4}>
-                  <Stack spacing={1}>
-                    {
-                      sampleTasks.map((task, index) =>
-                      {
-                        return (
-                          <>
-                            <Checkbox>{task.name}</Checkbox>
-                          </>
-                        );
-                      })
-                    }
-                  </Stack>
-                </AccordionPanel>
-              </AccordionItem>
-
-
-
-              <AccordionItem>
-                <h2>
-                  <AccordionButton>
-                    <Box as="span" flex='1' textAlign='left'>
-                      Section 1 title
-                    </Box>
-                    <AccordionIcon />
-                  </AccordionButton>
-                </h2>
-                <AccordionPanel pb={4}>
-                  <Stack spacing={1}>
-                    {
-                      sampleTasks.map((task, index) =>
-                      {
-                        return (
-                          <>
-                            <Checkbox>{task.name}</Checkbox>
-                          </>
-                        );
-                      })
-                    }
-                  </Stack>
-                </AccordionPanel>
-              </AccordionItem>
-
-
-
-              <AccordionItem>
-                <h2>
-                  <AccordionButton>
-                    <Box as="span" flex='1' textAlign='left'>
-                      Section 1 title
-                    </Box>
-                    <AccordionIcon />
-                  </AccordionButton>
-                </h2>
-                <AccordionPanel pb={4}>
-                  <Stack spacing={1}>
-                    {
-                      sampleTasks.map((task, index) =>
-                      {
-                        return (
-                          <>
-                            <Checkbox>{task.name}</Checkbox>
-                          </>
-                        );
-                      })
-                    }
-                  </Stack>
-                </AccordionPanel>
-              </AccordionItem>
-
+            <Accordion defaultIndex={[...Array(Object.keys(groupedTasks).length).keys()]} allowMultiple mt={8}>
+              {
+                Object.keys(groupedTasks).map((category, i) =>
+                {
+                  return (
+                    <AccordionItem key={i + "l"}>
+                      <h2>
+                        <AccordionButton>
+                          <Box as="span" flex='1' textAlign='left'>
+                            <Heading>{category}</Heading>
+                          </Box>
+                          <AccordionIcon />
+                        </AccordionButton>
+                      </h2>
+                      <AccordionPanel pb={4}>
+                        <Stack spacing={1}>
+                          {
+                            groupedTasks[category].map((task, index) =>
+                            {
+                              return (
+                                <Task
+                                  key={index}
+                                  _id={task._id}
+                                  name={task.name}
+                                  created_by={task.created_by}
+                                  owner={task.owner}
+                                  completed={task.completed}
+                                  category={task.category}
+                                  priority={task.priority}
+                                />
+                              );
+                            })
+                          }
+                        </Stack>
+                      </AccordionPanel>
+                    </AccordionItem>
+                  );
+                })
+              }
             </Accordion>
-
-            {/* 
-            <FormControl>
-              <FormLabel>Add a new task</FormLabel>
-              <Input type='email' />
-            </FormControl> */}
 
 
             <HStack spacing={4}>
               <Button
                 mt={4}
-                colorScheme='teal'
+                colorScheme='blue'
                 onClick={task_onOpen}
               >
                 New Task
-              </Button>
-
-
-              <Button
-                mt={4}
-                colorScheme='teal'
-                onClick={cat_onOpen}
-              >
-                New Group
               </Button>
             </HStack>
           </Box>
@@ -275,48 +280,35 @@ export default function Home({
           <Modal isOpen={task_isOpen} onClose={task_onClose}>
             <ModalOverlay />
             <ModalContent>
-              <ModalHeader>Add a new task</ModalHeader>
+              <ModalHeader>new task | calendo</ModalHeader>
               <ModalCloseButton />
               <ModalBody>
                 <FormControl>
-                  <Input type='newTask' placeholder='e.g. buy milk from store' />
+                  <FormLabel>new task</FormLabel>
+                  <Input type='newTask' placeholder='e.g. buy milk from store' onChange={(e) => { setNewTask(e.target.value); }} value={newTask} />
+                </FormControl>
+
+                <FormControl mt={4}>
+                  <FormLabel>category</FormLabel>
+                  <Input type='newCat' placeholder='e.g. school' onChange={(e) => { setNewCat(e.target.value); }} value={newCat} />
                 </FormControl>
               </ModalBody>
 
               <ModalFooter>
-                <Button variant='ghost'>Cancel</Button>
-                <Button colorScheme='teal' mr={3} onClick={task_onClose}>
+                <Button variant='ghost' onClick={task_onClose}>Cancel</Button>
+                <Button colorScheme='blue' mr={3} onClick={handleAddTask}>
                   Add
                 </Button>
               </ModalFooter>
             </ModalContent>
           </Modal>
 
-          <Modal isOpen={cat_isOpen} onClose={cat_onClose}>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>Add a new category</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <FormControl>
-                  <Input type='newTask' placeholder='e.g. Finance' />
-                </FormControl>
-              </ModalBody>
 
-              <ModalFooter>
-                <Button variant='ghost'>Cancel</Button>
-                <Button colorScheme='teal' mr={3} onClick={cat_onClose}>
-                  Add
-                </Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
 
 
 
         </SimpleGrid>
 
-        <Heading color='blue'>Are we connected? {isConnected ? "yes" : "no"}</Heading>
       </Container>
     </>
   );
