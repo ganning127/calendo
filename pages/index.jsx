@@ -24,6 +24,8 @@ import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import { getAuth } from "@clerk/nextjs/server";
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+const parser = require('any-date-parser');
+
 
 
 export const getServerSideProps = async ({ req }) =>
@@ -135,13 +137,81 @@ export default function Home({
       return;
     }
 
+    const dateregexp = /\b(?:(?:today|tomorrow|(?:mon|tues?|wed(?:nes)|thur?(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?)|(?:\d|\d\d|\d\d\d\d)?[/-]\d\d?(?:[/-](?:\d|\d\d|\d\d\d\d))?)\b/gmi;
+    const timeregexp = /(?<![\/-])\b[012]?\d[:h]?(?:\d\d)?(?: ?[ap]m?)?\b(?![\/-])/gm;
+    const str = newTask;
+
+    const dateArray = [...str.matchAll(dateregexp)];
+    console.log('dateArray', dateArray);
+    const timeArray = [...str.matchAll(timeregexp)];
+    console.log('timeArray', timeArray);
+
+    let date;
+    let time;
+    if (dateArray && dateArray.length > 0)
+    {
+      date = dateArray[dateArray.length - 1][0];
+    } else
+    {
+      date = "today";
+    }
+
+    if (timeArray && timeArray.length > 0)
+    {
+      time = timeArray[timeArray.length - 1][0];
+    } else
+    {
+      time = "12:00";
+    }
+
+    console.log(date + " at " + time);
+
+    const dateJSON = parser.attempt(date + ' at ' + time);
+    let datetime;
+    if (dateJSON.hasOwnProperty('invalid'))
+    {
+      // could not parse, handle
+      // maybe set it for tomorrow or something
+      console.log("invalid date encountered");
+      datetime = new Date();
+    } else
+    {
+      if (!dateJSON.hasOwnProperty("year"))
+      {
+        dateJSON.year = new Date().getFullYear();
+      }
+      if (!dateJSON.hasOwnProperty("month"))
+      {
+        dateJSON.month = new Date().getMonth() + 1;
+      }
+      if (!dateJSON.hasOwnProperty("day"))
+      {
+        dateJSON.day = new Date().getDate();
+      }
+      if (!dateJSON.hasOwnProperty("hour"))
+      {
+        dateJSON.hour = new Date().getHours();
+      }
+      if (!dateJSON.hasOwnProperty("minute"))
+      {
+        dateJSON.minute = new Date().getMinutes();
+      }
+
+      console.log("using parsed");
+      datetime = new Date(dateJSON.year, dateJSON.month - 1, dateJSON.day, dateJSON.hour, dateJSON.minute);
+    }
+
+
+    console.log("DATETIME IS: ", datetime);
+
     const resp = await fetch('/api/addTask', {
       method: "POST",
       body: JSON.stringify({
         name: newTask,
-        due: new Date(), // should be new Date()
+        due: datetime, // should be new Date()
         created_by: "SELF",
         owner: userId, // this would be a UUID that matches w/clerk
+        ownerFullName: user.fullName,
         completed: false, // true/false
         category: newCat != "" ? newCat : "misc",
         priority: 1 // 1 is the highest
@@ -169,6 +239,11 @@ export default function Home({
 
   };
 
+  const handleChangeTask = (e) =>
+  {
+    setNewTask(e.target.value);
+  };
+
   return (
     <>
       <Container maxW='container.xl'>
@@ -178,7 +253,7 @@ export default function Home({
 
         </Flex>
 
-        <SimpleGrid h='90vh' columns={{ base: 1, md: 2 }} spacing={8} >
+        <SimpleGrid h='90vh' columns={{ base: 1, md: 2 }} spacing={8} mt={8}>
 
           <Box border=''>
             <Stack direction={'row'} spacing={4} align={'center'} mt={16}>
@@ -253,6 +328,7 @@ export default function Home({
                                   completed={task.completed}
                                   category={task.category}
                                   priority={task.priority}
+                                  due={task.due}
                                 />
                               );
                             })
@@ -285,7 +361,7 @@ export default function Home({
               <ModalBody>
                 <FormControl>
                   <FormLabel>new task</FormLabel>
-                  <Input type='newTask' placeholder='e.g. buy milk from store' onChange={(e) => { setNewTask(e.target.value); }} value={newTask} />
+                  <Input type='newTask' placeholder='e.g. buy milk from store' onChange={handleChangeTask} value={newTask} />
                 </FormControl>
 
                 <FormControl mt={4}>
@@ -302,13 +378,7 @@ export default function Home({
               </ModalFooter>
             </ModalContent>
           </Modal>
-
-
-
-
-
         </SimpleGrid>
-
       </Container>
     </>
   );

@@ -15,6 +15,7 @@ export default async function handler(req, res)
             due: useReq.due, // should be new Date()
             created_by: useReq.created_by,
             owner: useReq.owner, // this would be a UUID that matches w/clerk
+            ownerFullName: useReq.ownerFullName,
             completed: useReq.completed, // true/false
             category: useReq.category,
             priority: useReq.priority // 1 is the highest

@@ -11,6 +11,7 @@
     "@clerk/nextjs": "^4.25.4",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
+    "any-date-parser": "^1.5.4",
     "framer-motion": "^10.16.4",
     "mongodb": "^4.8.1",
     "next": "latest",
