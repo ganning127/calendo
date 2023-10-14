@@ -51,18 +51,10 @@ export default async function handler(req, res)
 
     for (let j = 0; j < userIds.length; j++)
     {
-
         tasks.push({
             ...task, owner: userIds[j], ownerFullName: fullNames[j]
         });
     }
-
-    console.log(tasks);
-
-
-    console.log(userIds);
-    console.log("done");
-
 
     try
     {

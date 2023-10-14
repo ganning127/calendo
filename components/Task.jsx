@@ -38,7 +38,7 @@ export const Task = ({ _id, name, due, owner, completed, priority }) =>
         const data = await resp.json();
         if (data.success)
         {
-            router.push("/admin");
+            router.push(`/${window.location.pathname}`);
         }
     };
 
